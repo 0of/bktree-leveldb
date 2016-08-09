@@ -1,4 +1,11 @@
-
+/*
+ * BKTree-LevelDB
+ *
+ * Copyright (c) 2016 "0of" Magnus
+ * Licensed under the MIT license.
+ * https://github.com/0of/bktree-leveldb/blob/master/LICENSE
+ */
+ 
 #include <iostream>
 
 #include "LevenshteinDistance.h"
