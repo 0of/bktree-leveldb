@@ -27,3 +27,15 @@
 *.exe
 *.out
 *.app
+
+# Deps
+deps
+
+# CMake
+CMakeFiles
+CMakeCache.txt
+cmake_install.cmake
+
+# gen
+makefile
+bin
