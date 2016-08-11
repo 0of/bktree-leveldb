@@ -32,7 +32,10 @@ private:
   using Storage = leveldb::DB;
 
 private:
-  std::unique_ptr<Storage> _storage;
+  // user input key-values
+  std::unique_ptr<Storage> _valuesStorage;
+  // BKTree indexes
+  std::unique_ptr<Storage> _indexesStorage;
   std::string _rootKey;
 
 private:
@@ -65,26 +68,36 @@ private:
   };
   
 public:
-  static SelfType* New(const std::string& path) {
+  static SelfType* New(const std::string& path, const std::string& indexStoragePath) {
     leveldb::DB* db = nullptr;
+    leveldb::DB* indexesDB = nullptr;
 
     leveldb::Options options;
     options.create_if_missing = true;
 
     auto status = leveldb::DB::Open(options, path, &db);
     if (status.ok()) {
-      std::string rootKey;
+      status = leveldb::DB::Open(options, indexStoragePath, &indexesDB);
 
-      // TODO read root key from leveldb
-      return new SelfType(db, rootKey);
+      if (status.ok()) {
+        std::string rootKey;
+
+        // TODO read root key from leveldb
+        return new SelfType(db, indexesDB, rootKey);
+
+      } else {
+        // close db
+        delete db;
+      }
     }
 
     return nullptr;
   }
 
 protected:
-  BKTree(Storage *storage, const std::string& rootKey)
-    : _storage{ storage }
+  BKTree(Storage *valuesStorage, Storage *indexesStorage, const std::string& rootKey)
+    : _valuesStorage{ valuesStorage }
+    , _indexesStorage{ indexesStorage }
     , _rootKey{ rootKey }
   {}
 
@@ -130,7 +143,7 @@ public:
       auto d = DistancePolicy::distance(currentKey, key);
 
       if (d < threshold) {
-        values.emplace(loadKey(currentKey));
+        values.emplace(loadValue(currentKey));
         if (values.size() >= limit)
           break;
       }
@@ -159,22 +172,24 @@ public:
 
 private:
   void updateValue(const std::string& key, const std::string& value) {
-    if (!_storage->Put(leveldb::WriteOptions(), key, value).ok())
+    if (!_valuesStorage->Put(leveldb::WriteOptions(), key, value).ok())
       throw 0;
   }
 
   void storeRootKey(const std::string& key, const std::string& value) {
+    if (!_valuesStorage->Put(leveldb::WriteOptions(), key, value).ok())
+       throw std::runtime_error("store root failed");
+
     leveldb::WriteBatch batch;
     batch.Put("", key);
     batch.Put(key + 'c', "");
-    batch.Put(key, value);
 
-    if (!_storage->Write(leveldb::WriteOptions(), &batch).ok())
+    if (!_indexesStorage->Write(leveldb::WriteOptions(), &batch).ok())
       throw std::runtime_error("store root failed");
   }
 
-  bool containsAndGet(const std::string& key, std::string& value) {
-    auto status = _storage->Get(leveldb::ReadOptions(), key, &value);
+  bool containsAndGet(const std::string& indexKey, std::string& value) {
+    auto status = _indexesStorage->Get(leveldb::ReadOptions(), indexKey, &value);
     if (status.IsNotFound())
       return false;
     else if (status.ok())
@@ -187,7 +202,7 @@ private:
     auto queryKey = key + std::to_string(distance);
     std::string queriedKey;
 
-    auto status = _storage->Get(leveldb::ReadOptions(), queryKey, &queriedKey);
+    auto status = _indexesStorage->Get(leveldb::ReadOptions(), queryKey, &queriedKey);
     if (status.ok()) {
       return queriedKey;
     }
@@ -201,7 +216,7 @@ private:
 
     // get child distances
     std::string parentsChildren;
-    auto status = _storage->Get(leveldb::ReadOptions(), parent + 'c', &parentsChildren);
+    auto status = _indexesStorage->Get(leveldb::ReadOptions(), parent + 'c', &parentsChildren);
     if (!status.ok())
       throw 0;
 
@@ -210,13 +225,15 @@ private:
     // update children
     parentsChildren.insert(pos, Helper::stringfy(distance));
 
+    if (!_valuesStorage->Put(leveldb::WriteOptions(), key, value).ok())
+      throw std::runtime_error("store child key-value failed");
+
     leveldb::WriteBatch batch;
-    batch.Put(key, value);
     batch.Put(key + 'c', "");
     batch.Put(parent + 'c', parentsChildren);
     batch.Put(parent + std::to_string(distance), key);
 
-    if (!_storage->Write(leveldb::WriteOptions(), &batch).ok())
+    if (!_indexesStorage->Write(leveldb::WriteOptions(), &batch).ok())
       throw 0;
   }
 
@@ -227,9 +244,9 @@ private:
                             distance).pos();
   }
 
-  std::string loadKey(const std::string& key) {
+  std::string loadValue(const std::string& key) {
     std::string queryValue;
-    auto status = _storage->Get(leveldb::ReadOptions(), key, &queryValue);
+    auto status = _valuesStorage->Get(leveldb::ReadOptions(), key, &queryValue);
     if (status.ok()) {
       return queryValue;
     }
@@ -241,7 +258,7 @@ private:
     auto queryKey = key + 'c';
     std::string queryValue;
 
-    auto status = _storage->Get(leveldb::ReadOptions(), queryKey, &queryValue);
+    auto status = _indexesStorage->Get(leveldb::ReadOptions(), queryKey, &queryValue);
     if (status.ok()) {
       std::vector<std::uint32_t> keys(queryValue.size() / 8);
 
