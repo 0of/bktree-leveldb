@@ -51,7 +51,7 @@ private:
     {}
 
     std::size_t pos() {
-      return _offset * 8;
+      return _offset * sizeof(std::uint32_t);
     }
 
     ChildrenIterator& operator ++() {
@@ -60,7 +60,7 @@ private:
     }
 
     std::uint32_t operator *() {
-      return Helper::parse(_children->substr(_offset * 8, 8));
+      return Helper::parse(_children->substr(_offset * sizeof(std::uint32_t), sizeof(std::uint32_t)));
     }
 
     bool operator == (const ChildrenIterator& i) const { return _offset == i._offset; }
@@ -211,12 +211,13 @@ private:
   }
 
   void storeChild(const std::string& parent, std::uint32_t distance, const std::string& key, const std::string& value) {
-    // child distances is a string joined by multi fixed-length(8) substring
+    // child distances is a string joined by multi fixed-length substring
     // and each one represents the distance value in hex format 
 
     // get child distances
     std::string parentsChildren;
     auto status = _indexesStorage->Get(leveldb::ReadOptions(), parent + 'c', &parentsChildren);
+
     if (!status.ok())
       throw 0;
 
@@ -240,7 +241,7 @@ private:
   std::size_t findInsertionPos(const std::string& children, std::uint32_t distance) {
     // children is sorted ascendingly
     return std::lower_bound(ChildrenIterator{children, 0}, 
-                            ChildrenIterator{children, (children.size() / 8)},
+                            ChildrenIterator{children, (children.size() / sizeof(std::uint32_t))},
                             distance).pos();
   }
 
@@ -260,10 +261,10 @@ private:
 
     auto status = _indexesStorage->Get(leveldb::ReadOptions(), queryKey, &queryValue);
     if (status.ok()) {
-      std::vector<std::uint32_t> keys(queryValue.size() / 8);
+      std::vector<std::uint32_t> keys(queryValue.size() / sizeof(std::uint32_t));
 
-      for (std::size_t i = 0; i != queryValue.size() / 8; ++i) {
-        keys[i] = Helper::parse(queryValue.substr(i * 8, 8));
+      for (std::size_t i = 0; i != queryValue.size() / sizeof(std::uint32_t); ++i) {
+        keys[i] = Helper::parse(queryValue.substr(i * sizeof(std::uint32_t), sizeof(std::uint32_t)));
       }
 
       return std::move(keys);
