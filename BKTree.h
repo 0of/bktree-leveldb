@@ -133,8 +133,9 @@ public:
     }
   }
 
-  std::set<std::string> query(const std::string& key, std::uint32_t threshold, std::uint32_t limit) {
-    std::set<std::string> values;
+  template<typename ResultContainer = std::set<std::string>>
+  ResultContainer query(const std::string& key, std::uint32_t threshold, std::uint32_t limit) {
+    ResultContainer values;
 
     std::queue<std::string> pendingKeys;
     std::string currentKey = _rootKey;
@@ -172,20 +173,23 @@ public:
 
 private:
   void updateValue(const std::string& key, const std::string& value) {
-    if (!_valuesStorage->Put(leveldb::WriteOptions(), key, value).ok())
-      throw 0;
+    auto status = _valuesStorage->Put(leveldb::WriteOptions(), key, value);
+    if (!status.ok())
+      throw std::runtime_error{status.ToString()};
   }
 
   void storeRootKey(const std::string& key, const std::string& value) {
-    if (!_valuesStorage->Put(leveldb::WriteOptions(), key, value).ok())
-       throw std::runtime_error("store root failed");
+    auto status = _valuesStorage->Put(leveldb::WriteOptions(), key, value);
+    if (!status.ok())
+       throw std::runtime_error{status.ToString()};
 
     leveldb::WriteBatch batch;
     batch.Put("", key);
     batch.Put(key + 'c', "");
 
-    if (!_indexesStorage->Write(leveldb::WriteOptions(), &batch).ok())
-      throw std::runtime_error("store root failed");
+    status = _indexesStorage->Write(leveldb::WriteOptions(), &batch);
+    if (!status.ok())
+      throw std::runtime_error{status.ToString()};
   }
 
   bool containsAndGet(const std::string& indexKey, std::string& value) {
@@ -195,7 +199,7 @@ private:
     else if (status.ok())
       return true;
 
-    throw 0;
+    throw std::runtime_error{status.ToString()};
   }
 
   std::string lookupChildKey(const std::string& key, std::uint32_t distance) {
@@ -207,7 +211,7 @@ private:
       return queriedKey;
     }
 
-    throw 0;
+    throw std::runtime_error{status.ToString()};
   }
 
   void storeChild(const std::string& parent, std::uint32_t distance, const std::string& key, const std::string& value) {
@@ -219,7 +223,7 @@ private:
     auto status = _indexesStorage->Get(leveldb::ReadOptions(), parent + 'c', &parentsChildren);
 
     if (!status.ok())
-      throw 0;
+      throw std::runtime_error{status.ToString()};
 
     // find insert position
     auto pos = findInsertionPos(parentsChildren, distance);
@@ -234,8 +238,10 @@ private:
     batch.Put(parent + 'c', parentsChildren);
     batch.Put(parent + std::to_string(distance), key);
 
-    if (!_indexesStorage->Write(leveldb::WriteOptions(), &batch).ok())
-      throw 0;
+
+    status = _indexesStorage->Write(leveldb::WriteOptions(), &batch);
+    if (!status.ok())
+      throw std::runtime_error{status.ToString()};
   }
 
   std::size_t findInsertionPos(const std::string& children, std::uint32_t distance) {
@@ -252,7 +258,7 @@ private:
       return queryValue;
     }
 
-    throw 0;
+    throw std::runtime_error{status.ToString()};
   }
 
   std::vector<std::uint32_t> childDistances(const std::string& key) {
@@ -261,16 +267,11 @@ private:
 
     auto status = _indexesStorage->Get(leveldb::ReadOptions(), queryKey, &queryValue);
     if (status.ok()) {
-      std::vector<std::uint32_t> keys(queryValue.size() / sizeof(std::uint32_t));
-
-      for (std::size_t i = 0; i != queryValue.size() / sizeof(std::uint32_t); ++i) {
-        keys[i] = Helper::parse(queryValue.substr(i * sizeof(std::uint32_t), sizeof(std::uint32_t)));
-      }
-
-      return std::move(keys);
+      return std::vector<std::uint32_t>{ChildrenIterator{queryValue, 0},
+                                        ChildrenIterator{queryValue, (queryValue.size() / sizeof(std::uint32_t))}};
     }
 
-    throw 0;
+    throw std::runtime_error{status.ToString()};
   }
 };
 
