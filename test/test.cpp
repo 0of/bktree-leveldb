@@ -28,7 +28,7 @@ void cases(Spec& spec) {
 
     auto q = bktree->query("key1", 999, 999);
 
-    if (q.find("key1") == q.end() || q.find("key2") == q.end())
+    if (q.find("value1") == q.end() || q.find("value2") == q.end())
       throw AssertionFailed{};
   });
 }

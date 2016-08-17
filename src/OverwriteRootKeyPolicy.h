@@ -11,24 +11,19 @@
 
 #include "Helper.h"
 
+// called before update root key indexes
 struct OverwriteValueOnlyPolicy {
-  static void overwrite(const std::unique_ptr<leveldb::DB>& indexesDB, const std::string& rootKey, const std::vector<std::uint32_t>&) {
+  static void overwrite(const std::unique_ptr<leveldb::DB>& indexesDB, const std::string&, const std::vector<std::uint32_t>&, leveldb::WriteBatch&) {
     // do nothing
   }
 };
 
 struct CleanRootKeyIndexesPolicy {
-  static void overwrite(const std::unique_ptr<leveldb::DB>& indexesDB, const std::string& rootKey, const std::vector<std::uint32_t>& children) {
-    leveldb::WriteBatch batch;
-    batch.Put(ROOT_INDEX_KEY, rootKey);
+  static void overwrite(const std::unique_ptr<leveldb::DB>&, const std::string& rootKey, const std::vector<std::uint32_t>& children, leveldb::WriteBatch& batch) {
     batch.Put(CHILDREN_DISTANCES_KEY(rootKey), leveldb::Slice{});
 
     for (auto d : children) {
       batch.Delete(CHILD_INDEX_KEY(rootKey, d));
     }
-
-    auto status = indexesDB->Write(leveldb::WriteOptions(), &batch);
-    if (!status.ok())
-      throw std::runtime_error{status.ToString()};
   }
 };

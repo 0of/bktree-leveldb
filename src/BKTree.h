@@ -193,10 +193,22 @@ private:
        throw std::runtime_error{status.ToString()};
 
     // overwrite the root key if has children indexes
-    auto distances = childDistances(key); 
+    auto distances = childDistances(key, true); // return empty vec if no such index key
+
+    leveldb::WriteBatch batch;
+    // update root index key
+    batch.Put(ROOT_INDEX_KEY, key);
+
     if (!distances.empty()) {
-      OverwritePolicy::overwrite(_indexesStorage, key, distances);
+      OverwritePolicy::overwrite(_indexesStorage, key, distances, batch);
+    } else {
+      // create new indexes for the root key  
+      batch.Put(CHILDREN_DISTANCES_KEY(key), leveldb::Slice{});
     }
+
+    status = _indexesStorage->Write(leveldb::WriteOptions(), &batch);
+    if (!status.ok())
+      throw std::runtime_error{status.ToString()};
   }
 
   bool containsAndGet(const std::string& indexKey, std::string& value) {
@@ -245,7 +257,6 @@ private:
     batch.Put(CHILDREN_DISTANCES_KEY(parent), parentsChildren);
     batch.Put(CHILD_INDEX_KEY(parent, distance), key);
 
-
     status = _indexesStorage->Write(leveldb::WriteOptions(), &batch);
     if (!status.ok())
       throw std::runtime_error{status.ToString()};
@@ -268,13 +279,18 @@ private:
     throw std::runtime_error{status.ToString()};
   }
 
-  std::vector<std::uint32_t> childDistances(const std::string& key) {
+  std::vector<std::uint32_t> childDistances(const std::string& key, bool notFoundTolerated = false) {
     std::string queryValue;
 
     auto status = _indexesStorage->Get(leveldb::ReadOptions(), CHILDREN_DISTANCES_KEY(key), &queryValue);
     if (status.ok()) {
       return std::vector<std::uint32_t>{ChildrenIterator{queryValue, 0},
                                         ChildrenIterator{queryValue, (queryValue.size() / sizeof(std::uint32_t))}};
+    }
+
+    if (notFoundTolerated && status.IsNotFound()) {
+      // return empty one
+      return std::vector<std::uint32_t>{};
     }
 
     throw std::runtime_error{status.ToString()};
