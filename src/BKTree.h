@@ -18,14 +18,7 @@
 #include <memory>
 #include <algorithm>
 
-#include "Helper.h"
-
-// key to search for tree root key
-#define ROOT_INDEX_KEY leveldb::Slice{}
-// key to list all the associated distances
-#define CHILDREN_DISTANCES_KEY(parentKey) (parentKey + 'c')
-// key to query for real keys
-#define CHILD_INDEX_KEY(parentKey, distance) (parentKey + std::to_string(distance))
+#include "OverwriteRootKeyPolicy.h"
 
 template<typename DistancePolicy>
 class BKTree {
@@ -116,10 +109,11 @@ protected:
   {}
 
 public:
+  template<class OverwriteRootKeyPolicy = CleanRootKeyIndexesPolicy>
   void insert(const std::string& key, const std::string& value) {
     // if has no root key directly place the first key as root key
     if (_rootKey.empty()) {
-      storeRootKey(key, value);
+      storeRootKey<OverwriteRootKeyPolicy>(key, value);
 
       _rootKey = key;
       return;
@@ -192,18 +186,17 @@ private:
       throw std::runtime_error{status.ToString()};
   }
 
+  template<class OverwritePolicy>
   void storeRootKey(const std::string& key, const std::string& value) {
     auto status = _valuesStorage->Put(leveldb::WriteOptions(), key, value);
     if (!status.ok())
        throw std::runtime_error{status.ToString()};
 
-    leveldb::WriteBatch batch;
-    batch.Put(ROOT_INDEX_KEY, key);
-    batch.Put(CHILDREN_DISTANCES_KEY(key), leveldb::Slice{});
-
-    status = _indexesStorage->Write(leveldb::WriteOptions(), &batch);
-    if (!status.ok())
-      throw std::runtime_error{status.ToString()};
+    // overwrite the root key if has children indexes
+    auto distances = childDistances(key); 
+    if (!distances.empty()) {
+      OverwritePolicy::overwrite(_indexesStorage, key, distances);
+    }
   }
 
   bool containsAndGet(const std::string& indexKey, std::string& value) {
