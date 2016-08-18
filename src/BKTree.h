@@ -73,6 +73,19 @@ private:
     bool operator == (const ChildrenIterator& i) const { return _offset == i._offset; }
     bool operator != (const ChildrenIterator& i) const { return _offset != i._offset; }
   };
+
+  static std::string LoadRootKey(leveldb::DB* indexesDB) {
+    std::string queryValue;
+    auto status = indexesDB->Get(leveldb::ReadOptions(), ROOT_INDEX_KEY, &queryValue);
+    if (status.ok()) {
+      return queryValue;
+      
+    } else if (status.IsNotFound()) {
+      return std::string{};
+    }
+
+    throw std::runtime_error{status.ToString()}; 
+  }
   
 public:
   static SelfType* New(const std::string& path, const std::string& indexStoragePath) {
@@ -87,10 +100,7 @@ public:
       status = leveldb::DB::Open(options, indexStoragePath, &indexesDB);
 
       if (status.ok()) {
-        std::string rootKey;
-
-        // TODO read root key from leveldb
-        return new SelfType(db, indexesDB, rootKey);
+        return new SelfType(db, indexesDB, LoadRootKey(indexesDB));
 
       } else {
         // close db
@@ -98,7 +108,7 @@ public:
       }
     }
 
-    return nullptr;
+    throw std::runtime_error{status.ToString()}; 
   }
 
 protected:

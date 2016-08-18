@@ -54,3 +54,5 @@ add_executable(BKTree_Test ${tests})
 add_dependencies(BKTree_Test leveldb fido)
 target_link_libraries(BKTree_Test libleveldb ${CMAKE_THREAD_LIBS_INIT})
 
+enable_testing()
+add_test(NAME BaseTests COMMAND BKTree_Test)
