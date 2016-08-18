@@ -40,3 +40,5 @@ cmake_install.cmake
 makefile
 bin
 BKTree_Test
+Testing
+CTestTestfile.cmake
