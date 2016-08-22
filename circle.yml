@@ -4,7 +4,7 @@ general:
 machine:
   pre:
     - sudo apt-get update
-    - sudo apt-get install --fix-missing gcc-5 g++-5
+    - sudo apt-get install g++-5
     - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-5 50
 
 test:
