@@ -25,7 +25,6 @@ ExternalProject_Add(
     GIT_REPOSITORY https://github.com/google/snappy.git
     TIMEOUT 10
     UPDATE_COMMAND ${GIT_EXECUTABLE} pull
-    CMAKE_GENERATOR_TOOLSET 
     CONFIGURE_COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/deps/src/snappy/autogen.sh && ${CMAKE_CURRENT_SOURCE_DIR}/deps/src/snappy/configure
     BUILD_IN_SOURCE 1
     INSTALL_COMMAND ""
