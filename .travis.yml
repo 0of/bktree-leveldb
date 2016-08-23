@@ -18,7 +18,6 @@ addons:
      - clang-3.8
      - cmake
      - lcov
-     - libsnappy-dev
 
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get update -q; fi

@@ -18,6 +18,20 @@ ExternalProject_Add(
     LOG_DOWNLOAD ON
 )
 
+# Snappy deps
+ExternalProject_Add(
+    snappy
+    PREFIX ${CMAKE_BINARY_DIR}/deps
+    GIT_REPOSITORY https://github.com/google/snappy.git
+    TIMEOUT 10
+    UPDATE_COMMAND ${GIT_EXECUTABLE} pull
+    CMAKE_GENERATOR_TOOLSET 
+    CONFIGURE_COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/deps/src/snappy/autogen.sh && ${CMAKE_CURRENT_SOURCE_DIR}/deps/src/snappy/configure
+    BUILD_IN_SOURCE 1
+    INSTALL_COMMAND ""
+    LOG_DOWNLOAD ON
+)
+
 # Test framework
 ExternalProject_Add(
     fido
@@ -37,6 +51,9 @@ set(leveldb_src_dir ${source_dir})
 ExternalProject_Get_Property(fido source_dir)
 set(testframework_dir ${source_dir})
 
+ExternalProject_Get_Property(snappy binary_dir)
+set(snappy_build_dir ${binary_dir})
+
 include_directories("${leveldb_src_dir}/include")
 include_directories(${testframework_dir})
 
@@ -49,10 +66,14 @@ add_library(libleveldb STATIC IMPORTED)
 set_property(TARGET libleveldb PROPERTY
              IMPORTED_LOCATION ${leveldb_src_dir}/out-static/libleveldb.a)
 
+add_library(libsnappy STATIC IMPORTED)
+set_property(TARGET libsnappy PROPERTY
+             IMPORTED_LOCATION ${snappy_build_dir}/.libs/libsnappy.la)
+
 file(GLOB tests "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 add_executable(BKTree_Test ${tests})
-add_dependencies(BKTree_Test leveldb fido)
-target_link_libraries(BKTree_Test libleveldb snappy ${CMAKE_THREAD_LIBS_INIT})
+add_dependencies(BKTree_Test leveldb fido snappy)
+target_link_libraries(BKTree_Test libleveldb libsnappy ${CMAKE_THREAD_LIBS_INIT})
 
 enable_testing()
 add_test(NAME BaseTests COMMAND BKTree_Test)
