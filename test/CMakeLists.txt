@@ -52,7 +52,7 @@ set_property(TARGET libleveldb PROPERTY
 file(GLOB tests "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
 add_executable(BKTree_Test ${tests})
 add_dependencies(BKTree_Test leveldb fido)
-target_link_libraries(BKTree_Test libleveldb libsnappy ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(BKTree_Test libleveldb snappy ${CMAKE_THREAD_LIBS_INIT})
 
 enable_testing()
 add_test(NAME BaseTests COMMAND BKTree_Test)
