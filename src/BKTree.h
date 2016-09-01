@@ -37,7 +37,7 @@ class BKTree {
   //
 
 private:
-  using SelfType = BKTree<DistancePolicy>;
+  using SelfType = BKTree<DistancePolicy, CachePolicy>;
   using Storage = leveldb::DB;
 
 private:
@@ -321,7 +321,7 @@ private:
   }
 
   template<typename InputCachePolicy>
-  std::enable_if_t<std::is_base_of<ChildrenKeysCache, InputCachePolicy>::value> appendChildrenKeys(CachePolicy& cache, std::uint32_t d, std::uint32_t threshold, const std::string& currentKey, std::queue<std::string>& pendingKeys) {
+  std::enable_if_t<std::is_base_of<ChildrenKeysCache, InputCachePolicy>::value> appendChildrenKeys(InputCachePolicy& cache, std::uint32_t d, std::uint32_t threshold, const std::string& currentKey, std::queue<std::string>& pendingKeys) {
     std::pair<std::uint32_t, std::uint32_t> range = std::make_pair(d < threshold ? 0 : d - threshold, d + threshold);
 
     if (!cache.get(currentKey, pendingKeys, range)) {
