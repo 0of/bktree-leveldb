@@ -153,6 +153,11 @@ public:
 
   template<typename ResultContainer = std::set<std::string>>
   ResultContainer query(const std::string& key, std::uint32_t threshold, std::uint32_t limit) {
+    return query(key, threshold, limit, threshold);
+  }
+
+  template<typename ResultContainer = std::set<std::string>>
+  ResultContainer query(const std::string& key, std::uint32_t threshold, std::uint32_t limit, std::uint32_t distanceMetrics) {
     ResultContainer values;
 
     std::queue<std::string> pendingKeys;
@@ -161,7 +166,7 @@ public:
     while (true) {
       auto d = DistancePolicy::distance(currentKey, key);
 
-      if (d < threshold) {
+      if (d < distanceMetrics) {
         values.emplace(loadValue(currentKey));
         if (values.size() >= limit)
           break;
