@@ -17,10 +17,12 @@
 #include <queue>
 #include <memory>
 #include <algorithm>
+#include <type_traits>
 
 #include "OverwriteRootKeyPolicy.h"
+#include "CachePolicy.h"
 
-template<typename DistancePolicy>
+template<typename DistancePolicy, typename CachePolicy = NoCachePolicy>
 class BKTree {
 
   // 
@@ -44,6 +46,8 @@ private:
   // BKTree indexes
   std::unique_ptr<Storage> _indexesStorage;
   std::string _rootKey;
+
+  CachePolicy _cachePolicy;
 
 private:
   class ChildrenIterator : public std::iterator<std::input_iterator_tag, std::uint32_t> {
@@ -172,16 +176,7 @@ public:
           break;
       }
 
-      auto distances = childDistances(currentKey);
-
-      if (!distances.empty()) {
-        auto lowerBound = d < threshold ? distances.begin() : std::lower_bound(distances.begin(), distances.end(), d - threshold);
-        auto upperBound = std::upper_bound(distances.begin(), distances.end(), d + threshold);
-
-        for (; lowerBound != upperBound; ++lowerBound) {
-          pendingKeys.push(lookupChildKey(currentKey, *lowerBound));
-        }
-      }
+      appendChildrenKeys(_cachePolicy, d, threshold, currentKey, pendingKeys);
 
       if (pendingKeys.empty()) {
         break;
@@ -309,6 +304,38 @@ private:
     }
 
     throw std::runtime_error{status.ToString()};
+  }
+
+  template<typename InputCachePolicy>
+  std::enable_if_t<std::is_same<InputCachePolicy, NoCachePolicy>::value> appendChildrenKeys(InputCachePolicy& cache, std::uint32_t d, std::uint32_t threshold, const std::string& currentKey, std::queue<std::string>& pendingKeys) {
+    auto distances = childDistances(currentKey);
+
+    if (!distances.empty()) {
+      auto lowerBound = d < threshold ? distances.begin() : std::lower_bound(distances.begin(), distances.end(), d - threshold);
+      auto upperBound = std::upper_bound(distances.begin(), distances.end(), d + threshold);
+
+      for (; lowerBound != upperBound; ++lowerBound) {
+        pendingKeys.push(lookupChildKey(currentKey, *lowerBound));
+      }
+    }
+  }
+
+  template<typename InputCachePolicy>
+  std::enable_if_t<std::is_base_of<ChildrenKeysCache, InputCachePolicy>::value> appendChildrenKeys(CachePolicy& cache, std::uint32_t d, std::uint32_t threshold, const std::string& currentKey, std::queue<std::string>& pendingKeys) {
+    std::pair<std::uint32_t, std::uint32_t> range = std::make_pair(d < threshold ? 0 : d - threshold, d + threshold);
+
+    if (!cache.get(currentKey, pendingKeys, range)) {
+      // not hit
+      auto distances = childDistances(currentKey);
+
+      cache.update(currentKey, distances, [this](const std::string& key, std::uint32_t distance) {
+        return lookupChildKey(key, distance);
+      });
+
+      if (!cache.get(currentKey, pendingKeys, range)) {
+        throw std::logic_error("no keys loaded after cache updated");
+      }
+    }
   }
 };
 
