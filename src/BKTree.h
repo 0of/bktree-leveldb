@@ -18,6 +18,7 @@
 #include <memory>
 #include <algorithm>
 #include <type_traits>
+#include <tuple> 
 
 #include "OverwriteRootKeyPolicy.h"
 #include "CachePolicy.h"
@@ -64,8 +65,8 @@ private:
       , _children{ &children }
     {}
 
-    std::size_t pos() {
-      return _offset * sizeof(std::uint32_t);
+    std::tuple<std::size_t, std::size_t> pos() {
+      return std::make_tuple(_offset * sizeof(std::uint32_t), _offset);
     }
 
     ChildrenIterator& operator ++() {
@@ -250,8 +251,11 @@ private:
     if (!status.ok())
       throw std::runtime_error{status.ToString()};
 
+    std::uint32_t pos = 0;
+    std::uint32_t logicPos = 0;
+      
     // find insert position
-    auto pos = findInsertionPos(parentsChildren, distance);
+    std::tie(pos, logicPos) = findInsertionPos(parentsChildren, distance);
     // update children
     parentsChildren.insert(pos, Helper::stringfy(distance));
 
@@ -263,14 +267,14 @@ private:
     batch.Put(CHILDREN_DISTANCES_KEY(parent), parentsChildren);
     batch.Put(CHILD_INDEX_KEY(parent, distance), key);
 
-    putChildrenKey<ChildrenKeyPolicy>(parent, key, pos, batch);
+    putChildrenKey<ChildrenKeyPolicy>(parent, key, logicPos, batch);
 
     status = _indexesStorage->Write(leveldb::WriteOptions(), &batch);
     if (!status.ok())
       throw std::runtime_error{status.ToString()};
   }
 
-  std::size_t findInsertionPos(const std::string& children, std::uint32_t distance) {
+  std::tuple<std::size_t, std::size_t> findInsertionPos(const std::string& children, std::uint32_t distance) {
     // children is sorted ascendingly
     return std::lower_bound(ChildrenIterator{children, 0}, 
                             ChildrenIterator{children, (children.size() / sizeof(std::uint32_t))},
