@@ -21,6 +21,7 @@ struct OverwriteValueOnlyPolicy {
 struct CleanRootKeyIndexesPolicy {
   static void overwrite(const std::unique_ptr<leveldb::DB>&, const std::string& rootKey, const std::vector<std::uint32_t>& children, leveldb::WriteBatch& batch) {
     batch.Put(CHILDREN_DISTANCES_KEY(rootKey), leveldb::Slice{});
+    batch.Put(CHILDREN_KEY(rootKey), leveldb::Slice{});
 
     for (auto d : children) {
       batch.Delete(CHILD_INDEX_KEY(rootKey, d));

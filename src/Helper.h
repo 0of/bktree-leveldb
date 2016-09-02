@@ -15,6 +15,8 @@
 #define CHILDREN_DISTANCES_KEY(parentKey) (parentKey + 'c')
 // key to query for real keys
 #define CHILD_INDEX_KEY(parentKey, distance) (parentKey + std::to_string(distance))
+// key to query all children real keys
+#define CHILDREN_KEY(parentKey) (parentKey + '0')
 
 struct Helper {
   static std::uint32_t parse(const std::string& value) {

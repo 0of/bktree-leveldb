@@ -14,7 +14,7 @@ struct NoCachePolicy {};
 //
 // require
 //	bool get(const std::string& key, std::queue<std::string>& keys, const std::pair<std::uint32_t, std::uint32_t>& range)
-//	void update(const std::string& key, const std::vector<std::uint32_t>& distances, Callable loadChildKey)
+//	void update(const std::string& key, const std::vector<std::uint32_t>& distances, LoadSingleCallable loadChildKey, LoadAllCallable loadChildrenKeys)
 //
 class ChildrenKeysCache {};
 
