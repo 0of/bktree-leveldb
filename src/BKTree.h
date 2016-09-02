@@ -342,8 +342,8 @@ private:
 
       cache.update(currentKey, distances, [this](const std::string& key, std::uint32_t distance) {
         return lookupChildKey(key, distance);
-      }, [this, &distances](const std::string& key) {
-        return lookupChilrenKeys<ChildrenKeyPolicy>(key, distances);
+      }, [this, &distances](const std::string& key, auto& container) {
+        lookupChilrenKeys<ChildrenKeyPolicy>(key, distances, container);
       });
 
       if (!cache.get(currentKey, pendingKeys, range)) {
@@ -367,26 +367,19 @@ private:
   }
 
   template<typename InputChildrenKeyPolicy>
-  std::enable_if_t<std::is_same<InputChildrenKeyPolicy, DisableChildrenKey>::value, std::vector<std::string>> lookupChilrenKeys(const std::string& key, const std::vector<std::uint32_t>& distances) {
-    std::vector<std::string> keys;
+  std::enable_if_t<std::is_same<InputChildrenKeyPolicy, DisableChildrenKey>::value> lookupChilrenKeys(const std::string& key, const std::vector<std::uint32_t>& distances, std::vector<std::string>& keys) {
     keys.reserve(distances.size());
 
     for (auto i : distances) {
       keys.push_back(lookupChildKey(key, i));
     }
-
-    return std::move(keys);
   }
 
-  template<typename InputChildrenKeyPolicy>
-  std::enable_if_t<!std::is_same<InputChildrenKeyPolicy, DisableChildrenKey>::value, std::vector<std::string>> lookupChilrenKeys(const std::string& key, const std::vector<std::uint32_t>& distances) {
+  template<typename InputChildrenKeyPolicy, typename Container>
+  std::enable_if_t<!std::is_same<InputChildrenKeyPolicy, DisableChildrenKey>::value> lookupChilrenKeys(const std::string& key, const std::vector<std::uint32_t>& distances, Container& keys) {
+    
     auto queriedKey = loadIndex(CHILDREN_KEY(key));
-
-    std::vector<std::string> keys;
-    keys.reserve(distances.size());
-
     InputChildrenKeyPolicy::split(queriedKey, keys);
-    return std::move(keys);
   }
 };
 

@@ -16,15 +16,8 @@
 //
 // required
 //  static void insert(std::string& keys, const std::string& newKey, std::uint32_t pos)
-//	static void split(const std::string& keys, std::vector<std::string>& splitKeys)
+//	static void split(const std::string& keys, Container& splitKeys)
 //
-// example
-//	assume all keys have the same length
-//	struct MyChildrenKeyPolicy {
-//	  static void insert(std::string& keys, const std::string& newKey, std::uint32_t pos) {
-// 		
-//	  }
-//	};
 
 
 class DisableChildrenKey;
