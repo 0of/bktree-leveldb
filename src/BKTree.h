@@ -18,11 +18,15 @@
 #include <memory>
 #include <algorithm>
 #include <type_traits>
+#include <tuple> 
 
 #include "OverwriteRootKeyPolicy.h"
 #include "CachePolicy.h"
+#include "ChildrenKeyPolicy.h"
 
-template<typename DistancePolicy, typename CachePolicy = NoCachePolicy>
+template<typename DistancePolicy, 
+         typename CachePolicy = NoCachePolicy, 
+         typename ChildrenKeyPolicy = DisableChildrenKey>
 class BKTree {
 
   // 
@@ -37,7 +41,7 @@ class BKTree {
   //
 
 private:
-  using SelfType = BKTree<DistancePolicy, CachePolicy>;
+  using SelfType = BKTree<DistancePolicy, CachePolicy, ChildrenKeyPolicy>;
   using Storage = leveldb::DB;
 
 private:
@@ -61,8 +65,8 @@ private:
       , _children{ &children }
     {}
 
-    std::size_t pos() {
-      return _offset * sizeof(std::uint32_t);
+    std::tuple<std::size_t, std::size_t> pos() {
+      return std::make_tuple(_offset * sizeof(std::uint32_t), _offset);
     }
 
     ChildrenIterator& operator ++() {
@@ -214,6 +218,7 @@ private:
     } else {
       // create new indexes for the root key  
       batch.Put(CHILDREN_DISTANCES_KEY(key), leveldb::Slice{});
+      batch.Put(CHILDREN_KEY(key), leveldb::Slice{});
     }
 
     status = _indexesStorage->Write(leveldb::WriteOptions(), &batch);
@@ -232,15 +237,7 @@ private:
   }
 
   std::string lookupChildKey(const std::string& key, std::uint32_t distance) {
-    auto queryKey = CHILD_INDEX_KEY(key, distance);
-    std::string queriedKey;
-
-    auto status = _indexesStorage->Get(leveldb::ReadOptions(), queryKey, &queriedKey);
-    if (status.ok()) {
-      return queriedKey;
-    }
-
-    throw std::runtime_error{status.ToString()};
+    return loadIndex(CHILD_INDEX_KEY(key, distance));
   }
 
   void storeChild(const std::string& parent, std::uint32_t distance, const std::string& key, const std::string& value) {
@@ -254,8 +251,11 @@ private:
     if (!status.ok())
       throw std::runtime_error{status.ToString()};
 
+    std::uint32_t pos = 0;
+    std::uint32_t logicPos = 0;
+      
     // find insert position
-    auto pos = findInsertionPos(parentsChildren, distance);
+    std::tie(pos, logicPos) = findInsertionPos(parentsChildren, distance);
     // update children
     parentsChildren.insert(pos, Helper::stringfy(distance));
 
@@ -267,12 +267,14 @@ private:
     batch.Put(CHILDREN_DISTANCES_KEY(parent), parentsChildren);
     batch.Put(CHILD_INDEX_KEY(parent, distance), key);
 
+    putChildrenKey<ChildrenKeyPolicy>(parent, key, logicPos, batch);
+
     status = _indexesStorage->Write(leveldb::WriteOptions(), &batch);
     if (!status.ok())
       throw std::runtime_error{status.ToString()};
   }
 
-  std::size_t findInsertionPos(const std::string& children, std::uint32_t distance) {
+  std::tuple<std::size_t, std::size_t> findInsertionPos(const std::string& children, std::uint32_t distance) {
     // children is sorted ascendingly
     return std::lower_bound(ChildrenIterator{children, 0}, 
                             ChildrenIterator{children, (children.size() / sizeof(std::uint32_t))},
@@ -283,7 +285,17 @@ private:
     std::string queryValue;
     auto status = _valuesStorage->Get(leveldb::ReadOptions(), key, &queryValue);
     if (status.ok()) {
-      return queryValue;
+      return std::move(queryValue);
+    }
+
+    throw std::runtime_error{status.ToString()};
+  }
+
+  std::string loadIndex(const std::string& key) {
+    std::string queryValue;
+    auto status = _indexesStorage->Get(leveldb::ReadOptions(), key, &queryValue);
+    if (status.ok()) {
+      return std::move(queryValue);
     }
 
     throw std::runtime_error{status.ToString()};
@@ -330,12 +342,44 @@ private:
 
       cache.update(currentKey, distances, [this](const std::string& key, std::uint32_t distance) {
         return lookupChildKey(key, distance);
+      }, [this, &distances](const std::string& key, auto& container) {
+        lookupChilrenKeys<ChildrenKeyPolicy>(key, distances, container);
       });
 
       if (!cache.get(currentKey, pendingKeys, range)) {
-        throw std::logic_error("no keys loaded after cache updated");
+        throw std::logic_error{"no keys loaded after cache updated"};
       }
     }
+  }
+
+  template<typename InputChildrenKeyPolicy>
+  std::enable_if_t<std::is_same<InputChildrenKeyPolicy, DisableChildrenKey>::value> putChildrenKey(const std::string& parent, const std::string& child, std::uint32_t pos, leveldb::WriteBatch& batch) {
+    batch.Put(CHILDREN_KEY(child), leveldb::Slice{});
+  }
+
+  template<typename InputChildrenKeyPolicy>
+  std::enable_if_t<!std::is_same<InputChildrenKeyPolicy, DisableChildrenKey>::value> putChildrenKey(const std::string& parent, const std::string& child, std::uint32_t pos, leveldb::WriteBatch& batch) {
+    auto keys = loadIndex(CHILDREN_KEY(parent));
+    InputChildrenKeyPolicy::insert(keys, child, pos);
+
+    batch.Put(CHILDREN_KEY(child), leveldb::Slice{});
+    batch.Put(CHILDREN_KEY(parent), keys);
+  }
+
+  template<typename InputChildrenKeyPolicy>
+  std::enable_if_t<std::is_same<InputChildrenKeyPolicy, DisableChildrenKey>::value> lookupChilrenKeys(const std::string& key, const std::vector<std::uint32_t>& distances, std::vector<std::string>& keys) {
+    keys.reserve(distances.size());
+
+    for (auto i : distances) {
+      keys.push_back(lookupChildKey(key, i));
+    }
+  }
+
+  template<typename InputChildrenKeyPolicy, typename Container>
+  std::enable_if_t<!std::is_same<InputChildrenKeyPolicy, DisableChildrenKey>::value> lookupChilrenKeys(const std::string& key, const std::vector<std::uint32_t>& distances, Container& keys) {
+    
+    auto queriedKey = loadIndex(CHILDREN_KEY(key));
+    InputChildrenKeyPolicy::split(queriedKey, keys);
   }
 };
 
