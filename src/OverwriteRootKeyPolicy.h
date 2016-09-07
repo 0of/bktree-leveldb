@@ -13,13 +13,13 @@
 
 // called before update root key indexes
 struct OverwriteValueOnlyPolicy {
-  static void overwrite(const std::unique_ptr<leveldb::DB>& indexesDB, const std::string&, const std::vector<std::uint32_t>&, leveldb::WriteBatch&) {
+  static void overwrite(const std::shared_ptr<leveldb::DB>& indexesDB, const std::string&, const std::vector<std::uint32_t>&, leveldb::WriteBatch&) {
     // do nothing
   }
 };
 
 struct CleanRootKeyIndexesPolicy {
-  static void overwrite(const std::unique_ptr<leveldb::DB>&, const std::string& rootKey, const std::vector<std::uint32_t>& children, leveldb::WriteBatch& batch) {
+  static void overwrite(const std::shared_ptr<leveldb::DB>&, const std::string& rootKey, const std::vector<std::uint32_t>& children, leveldb::WriteBatch& batch) {
     batch.Put(CHILDREN_DISTANCES_KEY(rootKey), leveldb::Slice{});
     batch.Put(CHILDREN_KEY(rootKey), leveldb::Slice{});
 

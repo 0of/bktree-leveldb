@@ -46,9 +46,9 @@ private:
 
 private:
   // user input key-values
-  std::unique_ptr<Storage> _valuesStorage;
+  std::shared_ptr<Storage> _valuesStorage;
   // BKTree indexes
-  std::unique_ptr<Storage> _indexesStorage;
+  std::shared_ptr<Storage> _indexesStorage;
   std::string _rootKey;
 
   CachePolicy _cachePolicy;
@@ -108,7 +108,7 @@ public:
       status = leveldb::DB::Open(options, indexStoragePath, &indexesDB);
 
       if (status.ok()) {
-        return new SelfType(db, indexesDB, LoadRootKey(indexesDB));
+        return new SelfType(std::shared_ptr<Storage>{db}, std::shared_ptr<Storage>{indexesDB}, LoadRootKey(indexesDB));
 
       } else {
         // close db
@@ -120,7 +120,7 @@ public:
   }
 
 protected:
-  BKTree(Storage *valuesStorage, Storage *indexesStorage, const std::string& rootKey)
+  BKTree(const std::shared_ptr<Storage>& valuesStorage, const std::shared_ptr<Storage>& indexesStorage, const std::string& rootKey)
     : _valuesStorage{ valuesStorage }
     , _indexesStorage{ indexesStorage }
     , _rootKey{ rootKey }
@@ -191,6 +191,16 @@ public:
     }
 
     return std::move(values);
+  }
+
+  SelfType* clone(bool sharedCache = false) {
+    auto bktree = new SelfType(_valuesStorage, _indexesStorage, _rootKey);
+
+    if (sharedCache) {
+      bktree->_cachePolicy = _cachePolicy;
+    }
+
+    return bktree;
   }
 
 private:
