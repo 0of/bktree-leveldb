@@ -190,7 +190,7 @@ public:
       pendingKeys.pop();
     }
 
-    return std::move(values);
+    return values;
   }
 
   SelfType* clone(bool sharedCache = false) {
@@ -295,7 +295,7 @@ private:
     std::string queryValue;
     auto status = _valuesStorage->Get(leveldb::ReadOptions(), key, &queryValue);
     if (status.ok()) {
-      return std::move(queryValue);
+      return queryValue;
     }
 
     throw std::runtime_error{status.ToString()};
@@ -305,7 +305,7 @@ private:
     std::string queryValue;
     auto status = _indexesStorage->Get(leveldb::ReadOptions(), key, &queryValue);
     if (status.ok()) {
-      return std::move(queryValue);
+      return queryValue;
     }
 
     throw std::runtime_error{status.ToString()};
@@ -351,9 +351,9 @@ private:
       auto distances = childDistances(currentKey);
 
       cache.update(currentKey, distances, [this](const std::string& key, std::uint32_t distance) {
-        return lookupChildKey(key, distance);
+        return this->lookupChildKey(key, distance);
       }, [this, &distances](const std::string& key, auto& container) {
-        lookupChilrenKeys<ChildrenKeyPolicy>(key, distances, container);
+        this->lookupChilrenKeys<ChildrenKeyPolicy>(key, distances, container);
       });
 
       if (!cache.get(currentKey, pendingKeys, range)) {
