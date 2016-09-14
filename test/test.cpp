@@ -73,7 +73,7 @@ public:
 
 struct ChildrenKeyPolicyImpl {
   static void insert(std::string& keys, const std::string& newKey, std::uint32_t pos) {
-    keys.insert(keys.cbegin() + pos * 4, newKey.cbegin(), newKey.cend());
+    keys.insert(keys.begin() + pos * 4, newKey.cbegin(), newKey.cend());
   }
 
   static void split(const std::string& keys, CacheEntryContainer& splitKeys) {
